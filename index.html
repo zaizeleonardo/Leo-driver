@@ -95,7 +95,7 @@ $('shot').addEventListener('change',async e=>{
    return;
   }
   // O print enviado mostra a distância até a coleta, mas não informa quantos km há da coleta ao destino.
-  $('out').innerHTML='<h2>Oferta lida com sucesso</h2><div class="result good">Valor: '+money(moneyVal)+'</div><p class="muted">Distância até a coleta: '+pickupVal.toLocaleString('pt-BR',{maximumFractionDigits:1})+' km.</p><p class="bad">Falta somente a distância da coleta até o destino. Essa informação não aparece neste print; não vou inventar esse número nem calcular um lucro enganoso.</p><label for="trip">Informe apenas os km da coleta até o destino</label><input id="trip" type="number" min="0.1" step="0.1" placeholder="Distância da entrega em km"><button class="primary" id="finish" type="button">CALCULAR COM ESSE DADO</button>';
+  $('out').innerHTML='<h2>Oferta lida com sucesso</h2><div class="result good">Valor: '+money(moneyVal)+'</div><p class="muted">Distância até a coleta: '+pickupVal.toLocaleString('pt-BR',{maximumFractionDigits:1})+' km.</p><p class="bad">Falta somente a distância da coleta até o destino. Essa informação não aparece neste print; não vou inventar esse número nem calcular um lucro enganoso.</p><p class="muted">Preencha somente o campo “Distância da coleta ao destino” na seção acima e toque no botão abaixo.</p><button class="primary" id="finish" type="button">CALCULAR CORRIDA</button>';
   $('finish').addEventListener('click',()=>{
    const trip=Number($('trip').value);
    if(!trip||trip<=0){$('out').insertAdjacentHTML('beforeend','<p class="bad">Informe a distância da entrega para calcular.</p>');return;}
