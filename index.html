@@ -103,7 +103,7 @@ $('shot').addEventListener('change',async e=>{
     return out.data.text||'';
   };
   $('out').innerHTML='<h2>Lendo cabeçalho...</h2><p class="muted">Reconhecendo a distância aproximada até a coleta.</p>';
-  const headerText=await readCrop(.095,.18);
+  const headerText=await readCrop(.04,.17);
   $('out').innerHTML='<h2>Lendo percurso e valor...</h2><p class="muted">Reconhecendo os dados no restante da imagem.</p>';
   const full=await Tesseract.recognize(f,'eng',{tessedit_pageseg_mode:'6'});
   const raw=full.data.text||'';
