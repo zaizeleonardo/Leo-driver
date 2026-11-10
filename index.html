@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>Leo Driver — Analisador de corridas</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#edf2f7;background:#0b1220}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(150deg,#111c30,#0b1220 55%);min-height:100vh}
+main{max-width:900px;margin:auto;padding:24px 16px 48px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-weight:800;letter-spacing:.08em;font-size:13px;color:#9fb2ce}.pill{border:1px solid #34516d;border-radius:99px;padding:6px 10px;color:#a8d8c0;font-size:12px}
+h1{font-size:clamp(27px,5vw,42px);margin:22px 0 6px}.sub{color:#a9b8cc;margin:0 0 22px;line-height:1.5}
+.panel{background:#151f30;border:1px solid #29384e;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 12px 30px #0002}
+h2{font-size:18px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+label{display:block;font-size:12px;color:#aebdd0;margin:0 0 6px}input{width:100%;border:1px solid #3a4b63;background:#0d1726;color:#fff;border-radius:10px;padding:12px;font-size:16px;min-width:0}
+input:focus{outline:2px solid #58c69b;border-color:transparent}.wide{grid-column:1/-1}
+button{border:0;border-radius:12px;padding:13px 16px;font-weight:750;font-size:15px;cursor:pointer}
+.primary{background:#55d6a2;color:#082116;width:100%;margin-top:14px}.secondary{background:#26364c;color:#e8eef7}
+.upload{border:1px dashed #60758f;border-radius:12px;padding:16px;text-align:center;color:#b7c6d9}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{background:#0d1726;border:1px solid #29384e;border-radius:13px;padding:13px}.metric small{color:#9fb0c5;display:block}.metric strong{font-size:clamp(18px,3vw,25px);display:block;margin-top:6px}
+.result{font-size:18px;font-weight:800;margin-bottom:6px}.good{color:#62e0a9}.bad{color:#ff9c9c}.muted{color:#9fb0c5;font-size:13px;line-height:1.5}
+#preview{max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;margin-top:10px;display:none}
+.history{display:grid;gap:8px}.item{display:flex;justify-content:space-between;gap:12px;padding:10px;border-radius:10px;background:#0d1726;font-size:13px}
+footer{color:#8192a8;font-size:12px;text-align:center;margin-top:24px}
+@media(max-width:560px){main{padding:18px 12px 36px}.grid{grid-template-columns:1fr}.wide{grid-column:auto}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{grid-column:1/-1}.panel{padding:15px}}
+</style></head>
+<body><main>
+<div class="top"><div class="brand">LEO DRIVER INTELLIGENCE</div><div class="pill">Versão inicial · offline</div></div>
+<h1>Essa corrida compensa?</h1><p class="sub">Analisador de ofertas para seu Nissan Kicks SV 1.6 automático 2018. Preencha os dados que aparecem na oferta; o cálculo estima o resultado antes de aceitar.</p>
+<section class="panel">
+<h2>1. Dados do veículo e custos</h2>
+<div class="grid">
+<div><label for="cons">Consumo médio (km/L)</label><input id="cons" type="number" step=".1" value="9.7"></div>
+<div><label for="fuel">Preço do combustível (R$/L)</label><input id="fuel" type="number" step=".01" value="5.97"></div>
+<div><label for="wear">Reserva manutenção/pneu (R$/km)</label><input id="wear" type="number" step=".01" value=".40"></div>
+<div><label for="target">Lucro mínimo desejado (R$)</label><input id="target" type="number" step=".50" value="25"></div>
+</div><p class="muted">Valores iniciais são estimativas editáveis. Ajuste conforme seu consumo real, combustível e custos.</p>
+</section>
+<section class="panel">
+<h2>2. Oferta da Lalamove</h2>
+<div class="grid">
+<div><label for="pay">Valor que você recebe (R$)</label><input id="pay" type="number" step=".01" placeholder="Ex.: 48,00"></div>
+<div><label for="pickup">Distância até a coleta (km)</label><input id="pickup" type="number" step=".1" placeholder="Ex.: 3"></div>
+<div><label for="trip">Distância da coleta ao destino (km)</label><input id="trip" type="number" step=".1" placeholder="Ex.: 18"></div>
+<div><label for="toll">Pedágios/estacionamento (R$)</label><input id="toll" type="number" step=".01" value="0"></div>
+<div><label for="extra">Outros custos (R$)</label><input id="extra" type="number" step=".01" value="0"></div>
+<div><label for="return">Retorno vazio estimado (km)</label><input id="return" type="number" step=".1" value="0"></div>
+<div class="wide"><label for="shot">Print da oferta (opcional, apenas para consulta visual)</label><div class="upload">Escolher imagem da oferta<br><input id="shot" type="file" accept="image/*" style="margin-top:10px"></div><img id="preview" alt="Prévia do print enviado"></div>
+</div><button class="primary" id="calc">ANALISAR CORRIDA</button>
+</section>
+<section class="panel" id="out" aria-live="polite"><h2>3. Resultado da análise</h2><p class="muted">Informe os dados da oferta e toque em “Analisar corrida”.</p></section>
+<section class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">Histórico neste aparelho</h2><button class="secondary" id="clear" style="font-size:12px;padding:8px 10px">Limpar</button></div><div id="history" class="history" style="margin-top:12px"><p class="muted">Nenhuma corrida analisada ainda.</p></div></section>
+<p class="muted">Importante: este site não se conecta à Lalamove, não lê ofertas automaticamente e não aceita corridas por você. Ele calcula com os dados informados. Faça qualquer operação somente com o veículo parado.</p>
+<footer>Leo Driver · Ferramenta pessoal de estimativa · Não é afiliada à Lalamove</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id), val=id=>Math.max(0,Number($(id).value)||0), money=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+let records=JSON.parse(localStorage.getItem('leoDriverHistory')||'[]');
+function render(){ $('history').innerHTML=records.length?records.slice().reverse().map(r=>`<div class="item"><span>${r.km.toFixed(1)} km · ${r.date}</span><b>${money(r.profit)} líquido</b></div>`).join(''):'<p class="muted">Nenhuma corrida analisada ainda.</p>'; }
+$('calc').addEventListener('click',()=>{
+ const pay=val('pay'), pickup=val('pickup'),trip=val('trip'),back=val('return'),km=pickup+trip+back;
+ const cons=val('cons'),fuel=val('fuel'),wear=val('wear'),toll=val('toll'),extra=val('extra'),target=val('target');
+ if(!pay||!cons||!fuel||!km){$('out').innerHTML='<h2>3. Resultado da análise</h2><p class="bad">Preencha o valor recebido, as distâncias e os custos do veículo.</p>';return;}
+ const fuelCost=km/cons*fuel,wearCost=km*wear,cost=fuelCost+wearCost+toll+extra,profit=pay-cost,perKm=profit/km;
+ const status=profit>=target?'COMPENSA PELO SEU CRITÉRIO':profit>0?'LUCRO ABAIXO DA META':'NÃO COMPENSA';
+ const cls=profit>=target?'good':'bad';
+ $('out').innerHTML=`<h2>3. Resultado da análise</h2><div class="result ${cls}">${status}</div><div class="metrics"><div class="metric"><small>Lucro estimado</small><strong>${money(profit)}</strong></div><div class="metric"><small>Custo estimado</small><strong>${money(cost)}</strong></div><div class="metric"><small>Lucro por km</small><strong>${money(perKm)}</strong></div><div class="metric"><small>Distância total</small><strong>${km.toFixed(1)} km</strong></div><div class="metric"><small>Combustível</small><strong>${money(fuelCost)}</strong></div><div class="metric"><small>Manutenção/pneus</small><strong>${money(wearCost)}</strong></div></div><p class="muted">Cálculo: recebimento menos combustível, reserva por km, pedágios e outros custos. Considera coleta, entrega e retorno vazio informado. Não inclui impostos, depreciação completa nem tempo parado.</p>`;
+ records.push({km,profit,date:new Date().toLocaleString('pt-BR')});localStorage.setItem('leoDriverHistory',JSON.stringify(records));render();
+});
+$('clear').addEventListener('click',()=>{if(confirm('Apagar o histórico salvo neste aparelho?')){records=[];localStorage.removeItem('leoDriverHistory');render();}});
+$('shot').addEventListener('change',e=>{const f=e.target.files[0];if(f){const u=URL.createObjectURL(f);$('preview').src=u;$('preview').style.display='block';}});
+render();
+</script></body></html>
