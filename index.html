@@ -53,6 +53,7 @@ footer{color:#8192a8;font-size:12px;text-align:center;margin-top:24px}
 <p class="muted">Importante: este site não se conecta à Lalamove, não lê ofertas automaticamente e não aceita corridas por você. Ele calcula com os dados informados. Faça qualquer operação somente com o veículo parado.</p>
 <footer>Leo Driver · Ferramenta pessoal de estimativa · Não é afiliada à Lalamove</footer>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 const $=id=>document.getElementById(id), val=id=>Math.max(0,Number($(id).value)||0), money=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 let records=JSON.parse(localStorage.getItem('leoDriverHistory')||'[]');
@@ -68,6 +69,32 @@ $('calc').addEventListener('click',()=>{
  records.push({km,profit,date:new Date().toLocaleString('pt-BR')});localStorage.setItem('leoDriverHistory',JSON.stringify(records));render();
 });
 $('clear').addEventListener('click',()=>{if(confirm('Apagar o histórico salvo neste aparelho?')){records=[];localStorage.removeItem('leoDriverHistory');render();}});
-$('shot').addEventListener('change',e=>{const f=e.target.files[0];if(f){const u=URL.createObjectURL(f);$('preview').src=u;$('preview').style.display='block';}});
+$('shot').addEventListener('change',async e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const u=URL.createObjectURL(f);$('preview').src=u;$('preview').style.display='block';
+ $('out').innerHTML='<h2>3. Lendo sua oferta...</h2><p class="muted">Aguarde alguns segundos. Estamos identificando valor e distâncias no print.</p>';
+ try{
+  const result=await Tesseract.recognize(f,'por+eng');
+  const raw=result.data.text;
+  const normalized=raw.replace(/,/g,'.');
+  const moneyMatch=raw.match(/R\\$\\s*([0-9]{1,4}[.,][0-9]{2})/i);
+  const moneyVal=moneyMatch?Number(moneyMatch[1].replace('.','').replace(',','.')):null;
+  const pickupMatch=normalized.match(/(?:aprox\\.?|aproximadamente)[^0-9]{0,12}([0-9]+(?:\\.[0-9]+)?)\\s*km/i);
+  const distances=[...normalized.matchAll(/([0-9]+(?:\\.[0-9]+)?)\\s*km/gi)].map(m=>Number(m[1])).filter(n=>n>0);
+  const tripVal=distances.find(n=>!pickupMatch||Math.abs(n-Number(pickupMatch[1]))>.05);
+  if(moneyVal!==null)$('pay').value=moneyVal.toFixed(2);
+  if(pickupMatch)$('pickup').value=Number(pickupMatch[1]).toFixed(1);
+  if(tripVal!==undefined)$('trip').value=tripVal.toFixed(1);
+  if(moneyVal!==null && tripVal!==undefined){
+    $('out').innerHTML='<h2>Oferta identificada</h2><p class="muted">Valor e distâncias foram preenchidos automaticamente. Confira os campos e o retorno vazio antes de usar o resultado.</p>';
+    $('calc').click();
+  }else{
+    $('out').innerHTML='<h2>Não consegui identificar todos os dados</h2><p class="muted">O print foi lido, mas não encontrei com segurança o valor e as distâncias. Confira o texto abaixo e complete apenas o que faltar.</p><pre style="white-space:pre-wrap;color:#b8c7da;font-size:12px">'+raw.replace(/[<>&]/g,'')+'</pre>';
+    if(moneyVal!==null)$('pay').value=moneyVal.toFixed(2);
+    if(pickupMatch)$('pickup').value=Number(pickupMatch[1]).toFixed(1);
+    if(tripVal!==undefined)$('trip').value=tripVal.toFixed(1);
+  }
+ }catch(err){$('out').innerHTML='<h2>Falha na leitura do print</h2><p class="muted">Verifique sua conexão e tente novamente. Se a imagem estiver muito pequena ou borrada, tire outro print.</p>';}
+});
 render();
 </script></body></html>
