@@ -26,7 +26,7 @@ footer{color:#8192a8;font-size:12px;text-align:center;margin-top:24px}
 </style></head>
 <body><main>
 <div class="top"><div class="brand">LEO DRIVER INTELLIGENCE</div><div class="pill">Versão inicial · offline</div></div>
-<h1>Essa corrida compensa?</h1><p class="sub">Analisador de ofertas para seu Nissan Kicks SV 1.6 automático 2018. Preencha os dados que aparecem na oferta; o cálculo estima o resultado antes de aceitar.</p>
+<h1>Essa corrida compensa?</h1><p class="sub">Tire um print da oferta da Lalamove, envie a imagem e receba a estimativa automaticamente. Você não precisa digitar os dados da corrida.</p>
 <section class="panel">
 <h2>1. Dados do veículo e custos</h2>
 <div class="grid">
@@ -45,10 +45,10 @@ footer{color:#8192a8;font-size:12px;text-align:center;margin-top:24px}
 <div><label for="toll">Pedágios/estacionamento (R$)</label><input id="toll" type="number" step=".01" value="0"></div>
 <div><label for="extra">Outros custos (R$)</label><input id="extra" type="number" step=".01" value="0"></div>
 <div><label for="return">Retorno vazio estimado (km)</label><input id="return" type="number" step=".1" value="0"></div>
-<div class="wide"><label for="shot">Print da oferta (opcional, apenas para consulta visual)</label><div class="upload">Escolher imagem da oferta<br><input id="shot" type="file" accept="image/*" style="margin-top:10px"></div><img id="preview" alt="Prévia do print enviado"></div>
+<div class="wide"><label for="shot">Print da oferta — envie para leitura automática</label><div class="upload">Escolher imagem da oferta<br><input id="shot" type="file" accept="image/*" style="margin-top:10px"></div><img id="preview" alt="Prévia do print enviado"></div>
 </div><button class="primary" id="calc">ANALISAR CORRIDA</button>
 </section>
-<section class="panel" id="out" aria-live="polite"><h2>3. Resultado da análise</h2><p class="muted">Informe os dados da oferta e toque em “Analisar corrida”.</p></section>
+<section class="panel" id="out" aria-live="polite"><h2>3. Resultado da análise</h2><p class="muted">Envie o print da oferta para iniciar a leitura automática.</p></section>
 <section class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">Histórico neste aparelho</h2><button class="secondary" id="clear" style="font-size:12px;padding:8px 10px">Limpar</button></div><div id="history" class="history" style="margin-top:12px"><p class="muted">Nenhuma corrida analisada ainda.</p></div></section>
 <p class="muted">Importante: este site não se conecta à Lalamove, não lê ofertas automaticamente e não aceita corridas por você. Ele calcula com os dados informados. Faça qualquer operação somente com o veículo parado.</p>
 <footer>Leo Driver · Ferramenta pessoal de estimativa · Não é afiliada à Lalamove</footer>
@@ -72,29 +72,31 @@ $('clear').addEventListener('click',()=>{if(confirm('Apagar o histórico salvo n
 $('shot').addEventListener('change',async e=>{
  const f=e.target.files[0]; if(!f)return;
  const u=URL.createObjectURL(f);$('preview').src=u;$('preview').style.display='block';
- $('out').innerHTML='<h2>3. Lendo sua oferta...</h2><p class="muted">Aguarde alguns segundos. Estamos identificando valor e distâncias no print.</p>';
+ $('out').innerHTML='<h2>Lendo sua oferta automaticamente...</h2><p class="muted">Identificando valor e distâncias. Não precisa preencher os campos da corrida.</p>';
  try{
   const result=await Tesseract.recognize(f,'por+eng');
   const raw=result.data.text;
   const normalized=raw.replace(/,/g,'.');
-  const moneyMatch=raw.match(/R\\$\\s*([0-9]{1,4}[.,][0-9]{2})/i);
-  const moneyVal=moneyMatch?Number(moneyMatch[1].replace('.','').replace(',','.')):null;
-  const pickupMatch=normalized.match(/(?:aprox\\.?|aproximadamente)[^0-9]{0,12}([0-9]+(?:\\.[0-9]+)?)\\s*km/i);
-  const distances=[...normalized.matchAll(/([0-9]+(?:\\.[0-9]+)?)\\s*km/gi)].map(m=>Number(m[1])).filter(n=>n>0);
-  const tripVal=distances.find(n=>!pickupMatch||Math.abs(n-Number(pickupMatch[1]))>.05);
+  const moneyMatch=raw.match(/R\$\s*([0-9]{1,4}(?:[.,][0-9]{2}))/i);
+  const moneyVal=moneyMatch?Number(moneyMatch[1].replace(',','.')):null;
+  const pickupMatch=normalized.match(/(?:aprox(?:imadamente)?\.?\s*~?\s*)([0-9]+(?:\.[0-9]+)?)\s*km/i);
+  const distances=[...normalized.matchAll(/([0-9]+(?:\.[0-9]+)?)\s*km/gi)].map(m=>Number(m[1])).filter(n=>n>0);
+  const pickupVal=pickupMatch?Number(pickupMatch[1]):0;
+  const tripVal=distances.find(n=>Math.abs(n-pickupVal)>.05);
   if(moneyVal!==null)$('pay').value=moneyVal.toFixed(2);
-  if(pickupMatch)$('pickup').value=Number(pickupMatch[1]).toFixed(1);
+  if(pickupVal>0)$('pickup').value=pickupVal.toFixed(1);
   if(tripVal!==undefined)$('trip').value=tripVal.toFixed(1);
   if(moneyVal!==null && tripVal!==undefined){
-    $('out').innerHTML='<h2>Oferta identificada</h2><p class="muted">Valor e distâncias foram preenchidos automaticamente. Confira os campos e o retorno vazio antes de usar o resultado.</p>';
+    $('return').value=0;
     $('calc').click();
+    const note=document.createElement('p');
+    note.className='muted';
+    note.textContent='Leitura automática: valor e distâncias extraídos do print. O cálculo considera retorno vazio de 0 km porque a oferta não informa a volta.';
+    $('out').appendChild(note);
   }else{
-    $('out').innerHTML='<h2>Não consegui identificar todos os dados</h2><p class="muted">O print foi lido, mas não encontrei com segurança o valor e as distâncias. Confira o texto abaixo e complete apenas o que faltar.</p><pre style="white-space:pre-wrap;color:#b8c7da;font-size:12px">'+raw.replace(/[<>&]/g,'')+'</pre>';
-    if(moneyVal!==null)$('pay').value=moneyVal.toFixed(2);
-    if(pickupMatch)$('pickup').value=Number(pickupMatch[1]).toFixed(1);
-    if(tripVal!==undefined)$('trip').value=tripVal.toFixed(1);
+    $('out').innerHTML='<h2>Não consegui ler a oferta com segurança</h2><p class="muted">Não vou pedir que você digite tudo. Tire outro print nítido, mostrando o valor recebido e as distâncias, e envie novamente.</p><pre style="white-space:pre-wrap;color:#b8c7da;font-size:12px">'+raw.replace(/[<>&]/g,'')+'</pre>';
   }
- }catch(err){$('out').innerHTML='<h2>Falha na leitura do print</h2><p class="muted">Verifique sua conexão e tente novamente. Se a imagem estiver muito pequena ou borrada, tire outro print.</p>';}
+ }catch(err){$('out').innerHTML='<h2>Falha na leitura do print</h2><p class="muted">Não foi possível processar essa imagem. Verifique a conexão e envie um print nítido novamente.</p>';}
 });
 render();
 </script></body></html>
