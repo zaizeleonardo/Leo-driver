@@ -25,8 +25,8 @@ footer{color:#8192a8;font-size:12px;text-align:center;margin-top:24px}
 @media(max-width:560px){main{padding:18px 12px 36px}.grid{grid-template-columns:1fr}.wide{grid-column:auto}.metrics{grid-template-columns:1fr 1fr}.metrics .metric:last-child{grid-column:1/-1}.panel{padding:15px}}
 </style></head>
 <body><main>
-<div class="top"><div class="brand">LEO DRIVER INTELLIGENCE</div><div class="pill">Versão inicial · offline</div></div>
-<h1>Essa corrida compensa?</h1><p class="sub">Tire um print da oferta da Lalamove, envie a imagem e receba a estimativa automaticamente. Você não precisa digitar os dados da corrida.</p>
+<div class="top"><div class="brand">LEO DRIVER INTELLIGENCE</div><div class="pill">Leitura de print · beta</div></div>
+<h1>Essa corrida compensa?</h1><p class="sub">Envie o print da oferta. O sistema tenta extrair os dados visíveis e só pede a distância entre coleta e destino se ela não estiver no print.</p>
 <section class="panel">
 <h2>1. Dados do veículo e custos</h2>
 <div class="grid">
@@ -37,16 +37,20 @@ footer{color:#8192a8;font-size:12px;text-align:center;margin-top:24px}
 </div><p class="muted">Valores iniciais são estimativas editáveis. Ajuste conforme seu consumo real, combustível e custos.</p>
 </section>
 <section class="panel">
-<h2>2. Oferta da Lalamove</h2>
-<div class="grid">
-<div><label for="pay">Valor que você recebe (R$)</label><input id="pay" type="number" step=".01" placeholder="Ex.: 48,00"></div>
-<div><label for="pickup">Distância até a coleta (km)</label><input id="pickup" type="number" step=".1" placeholder="Ex.: 3"></div>
-<div><label for="trip">Distância da coleta ao destino (km)</label><input id="trip" type="number" step=".1" placeholder="Ex.: 18"></div>
-<div><label for="toll">Pedágios/estacionamento (R$)</label><input id="toll" type="number" step=".01" value="0"></div>
-<div><label for="extra">Outros custos (R$)</label><input id="extra" type="number" step=".01" value="0"></div>
-<div><label for="return">Retorno vazio estimado (km)</label><input id="return" type="number" step=".1" value="0"></div>
-<div class="wide"><label for="shot">Print da oferta — envie para leitura automática</label><div class="upload">Escolher imagem da oferta<br><input id="shot" type="file" accept="image/*" style="margin-top:10px"></div><img id="preview" alt="Prévia do print enviado"></div>
-</div><button class="primary" id="calc">ANALISAR CORRIDA</button>
+<h2>2. Envie o print da oferta</h2>
+<p class="muted">Escolha o print da Lalamove. O Leo Driver vai tentar reconhecer o valor e a distância automaticamente.</p>
+<div class="upload"><label for="shot" style="font-size:16px">Selecionar print da oferta</label><input id="shot" type="file" accept="image/*" style="margin-top:10px"></div>
+<img id="preview" alt="Prévia do print enviado">
+<div id="manualFallback" hidden class="muted">Se a leitura automática falhar, os dados reconhecidos serão mostrados para conferência.</div>
+<div id="hiddenOfferData" hidden>
+<input id="pay" type="number" step=".01">
+<input id="pickup" type="number" step=".1">
+<input id="trip" type="number" step=".1">
+<input id="toll" type="number" step=".01" value="0">
+<input id="extra" type="number" step=".01" value="0">
+<input id="return" type="number" step=".1" value="0">
+</div>
+<button class="primary" id="calc" type="button" hidden>ANALISAR CORRIDA</button>
 </section>
 <section class="panel" id="out" aria-live="polite"><h2>3. Resultado da análise</h2><p class="muted">Envie o print da oferta para iniciar a leitura automática.</p></section>
 <section class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">Histórico neste aparelho</h2><button class="secondary" id="clear" style="font-size:12px;padding:8px 10px">Limpar</button></div><div id="history" class="history" style="margin-top:12px"><p class="muted">Nenhuma corrida analisada ainda.</p></div></section>
@@ -95,9 +99,9 @@ $('shot').addEventListener('change',async e=>{
    return;
   }
   // O print enviado mostra a distância até a coleta, mas não informa quantos km há da coleta ao destino.
-  $('out').innerHTML='<h2>Oferta lida com sucesso</h2><div class="result good">Valor: '+money(moneyVal)+'</div><p class="muted">Distância até a coleta: '+pickupVal.toLocaleString('pt-BR',{maximumFractionDigits:1})+' km.</p><p class="bad">Falta somente a distância da coleta até o destino. Essa informação não aparece neste print; não vou inventar esse número nem calcular um lucro enganoso.</p><p class="muted">Preencha somente o campo “Distância da coleta ao destino” na seção acima e toque no botão abaixo.</p><button class="primary" id="finish" type="button">CALCULAR CORRIDA</button>';
+  $('out').innerHTML='<h2>Oferta lida com sucesso</h2><div class="result good">Valor: '+money(moneyVal)+'</div><p class="muted">Distância até a coleta: '+pickupVal.toLocaleString('pt-BR',{maximumFractionDigits:1})+' km.</p><p class="bad">Falta somente a distância da coleta até o destino. Essa informação não aparece neste print; não vou inventar esse número nem calcular um lucro enganoso.</p><label for="tripQuick">Distância da coleta até o destino (km)</label><input id="tripQuick" type="number" min="0.1" step="0.1" placeholder="Ex.: 18"><button class="primary" id="finish" type="button">CALCULAR CORRIDA</button>';
   $('finish').addEventListener('click',()=>{
-   const trip=Number($('trip').value);
+   const trip=Number($('tripQuick').value); $('trip').value=trip;
    if(!trip||trip<=0){$('out').insertAdjacentHTML('beforeend','<p class="bad">Informe a distância da entrega para calcular.</p>');return;}
    $('calc').click();
    const note=document.createElement('p');note.className='muted';
@@ -105,7 +109,7 @@ $('shot').addEventListener('change',async e=>{
    $('out').appendChild(note);
   });
  }catch(err){
-  $('out').innerHTML='<h2>Falha na leitura do print</h2><p class="bad">Não consegui processar a imagem. Confira sua conexão e tente novamente com um print nítido.</p><p class="muted">Os campos da corrida continuam disponíveis para correção manual, se necessário.</p>';
+  $('out').innerHTML='<h2>Não foi possível ler esse print</h2><p class="bad">O leitor automático não conseguiu processar a imagem. Tente novamente com uma captura nítida e conexão ativa.</p>';
  }
 });
 render();
