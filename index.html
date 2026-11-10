@@ -87,75 +87,66 @@ $('clear').addEventListener('click',()=>{if(confirm('Apagar o histórico salvo n
 $('shot').addEventListener('change',async e=>{
  const f=e.target.files[0]; if(!f)return;
  const u=URL.createObjectURL(f);$('preview').src=u;$('preview').style.display='block';
- $('out').innerHTML='<h2>Lendo a imagem...</h2><p class="muted">Identificando as duas distâncias e o valor da corrida.</p>';
+ $('out').innerHTML='<h2>Preparando leitura...</h2><p class="muted">Lendo separadamente o cabeçalho, a distância do percurso e o valor.</p>';
  $('pay').value='';$('pickup').value='';$('trip').value='';
  try{
-  if(!window.Tesseract) throw new Error('Leitor OCR indisponível');
-  const full=await Tesseract.recognize(f,'por+eng');
-  const raw=full.data.text||'';
-  const lines=(full.data.lines||[]).map(line=>({
-    text:(line.text||'').replace(/\s+/g,' ').trim(),
-    y:line.bbox?line.bbox.y0:0
-  })).filter(line=>line.text);
-  // Lê uma faixa maior do topo e melhora contraste para o texto branco no cabeçalho laranja.
-  let headerText='';
+  if(!window.Tesseract) throw new Error('Biblioteca OCR não carregou. Verifique a conexão.');
   const img=await createImageBitmap(f);
-  const canvas=document.createElement('canvas');
-  const cropHeight=Math.round(img.height*.36);
-  canvas.width=Math.round(img.width*3);
-  canvas.height=Math.round(cropHeight*3);
-  const ctx=canvas.getContext('2d');
-  ctx.filter='grayscale(1) contrast(1.7)';
-  ctx.drawImage(img,0,0,img.width,cropHeight,0,0,canvas.width,canvas.height);
-  const header=await Tesseract.recognize(canvas,'por+eng');
-  headerText=header.data.text||'';
+  const readCrop=async(top,bottom)=>{
+    const sourceY=Math.round(img.height*top), sourceH=Math.round(img.height*(bottom-top));
+    const cv=document.createElement('canvas');
+    cv.width=Math.round(img.width*3);cv.height=Math.round(sourceH*3);
+    const cx=cv.getContext('2d');
+    cx.filter='grayscale(1) contrast(1.8)';
+    cx.drawImage(img,0,sourceY,img.width,sourceH,0,0,cv.width,cv.height);
+    const out=await Tesseract.recognize(cv,'eng');
+    return out.data.text||'';
+  };
+  $('out').innerHTML='<h2>Lendo cabeçalho...</h2><p class="muted">Reconhecendo a distância aproximada até a coleta.</p>';
+  const headerText=await readCrop(.10,.25);
+  $('out').innerHTML='<h2>Lendo percurso e valor...</h2><p class="muted">Reconhecendo os dados no restante da imagem.</p>';
+  const full=await Tesseract.recognize(f,'eng');
+  const raw=full.data.text||'';
   const combined=headerText+'\n'+raw;
-  const normalize=s=>(s||'').replace(/[|]/g,'1').replace(/[º°]/g,'').replace(/\s+/g,' ').trim();
-  const headerClean=normalize(headerText);
-  const rawClean=normalize(raw);
-  // A distância até a coleta é o número próximo da palavra "Aprox.", mesmo se o OCR
-  // trocar "~", vírgula/ponto ou não reconhecer "de você".
-  function findPickup(text){
-    const patterns=[
-      /aprox(?:imadamente)?\.?[\s~:=-]{0,18}([0-9]{1,3}(?:[.,][0-9]+)?)\s*k[mn]?/i,
-      /([0-9]{1,3}(?:[.,][0-9]+)?)\s*k[mn]?\s*de\s*vo?c/i
-    ];
-    for(const re of patterns){const m=text.match(re);if(m){const n=Number(m[1].replace(',','.'));if(n>0&&n<100)return n;}}
-    return null;
+  const norm=s=>(s||'').replace(/[|]/g,'1').replace(/\s+/g,' ').trim();
+  const header=norm(headerText), all=norm(raw), both=norm(combined);
+  // No cabeçalho, a distância vem imediatamente depois de "Aprox."; aceitar ponto ou vírgula.
+  const pickupMatch=header.match(/aprox(?:\.|imadamente)?\s*[~\-:]?\s*([0-9]{1,2}(?:[.,][0-9]+)?)\s*k[mn]?/i)
+    || both.match(/aprox(?:\.|imadamente)?\s*[~\-:]?\s*([0-9]{1,2}(?:[.,][0-9]+)?)\s*k[mn]?/i);
+  const pickupVal=pickupMatch?Number(pickupMatch[1].replace(',','.')):null;
+  // A quilometragem do trajeto é uma linha "8.1 km" antes do primeiro endereço.
+  const routeMatch=all.match(/(?:^|\s)([0-9]{1,3}(?:[.,][0-9]+)?)\s*km(?=\s+(?:Osasco|Carapicu[ií]ba|S[aã]o|Rua|R\.|Av\.))/i)
+    || all.match(/(?:^|\s)([0-9]{1,3}(?:[.,][0-9]+)?)\s*km(?=\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/);
+  let tripVal=routeMatch?Number(routeMatch[1].replace(',','.')):null;
+  if(!Number.isFinite(tripVal)){
+    const kmValues=[...all.matchAll(/([0-9]{1,3}(?:[.,][0-9]+)?)\s*km/gi)].map(m=>Number(m[1].replace(',','.'))).filter(n=>n>0&&n<500);
+    tripVal=kmValues.find(n=>!pickupVal||Math.abs(n-pickupVal)>.05)??null;
   }
-  const pickupVal=findPickup(headerClean)||findPickup(rawClean);
-  // O número da rota é o outro valor em km na tela (ex.: 8.1 km), separado do "Aprox.".
-  const kmRegex=/([0-9]{1,3}(?:[.,][0-9]+)?)\s*km/gi;
-  const kmMatches=[...new Set([...rawClean.matchAll(kmRegex)].map(m=>Number(m[1].replace(',','.'))).filter(n=>n>0&&n<500))];
-  const tripVal=kmMatches.find(n=>!pickupVal||Math.abs(n-pickupVal)>.05)??null;
-
-
-  // Algumas ofertas mostram valor base + adicional (ex.: R$ 26,21 + 4,00).
-  // Soma as duas parcelas para calcular o total recebido.
-  const amountMatch=combined.match(/R\s*\$\s*([0-9]{1,4}(?:\.[0-9]{3})*(?:,[0-9]{2})|[0-9]{1,4}(?:,[0-9]{2}))(?:\s*\+\s*([0-9]{1,4}(?:,[0-9]{2})?))?/i);
-  const baseAmount=amountMatch?Number(amountMatch[1].replace(/\./g,'').replace(',','.')):null;
-  const bonusAmount=amountMatch&&amountMatch[2]?Number(amountMatch[2].replace(',','.')):0;
-  const moneyVal=Number.isFinite(baseAmount)?baseAmount+bonusAmount:null;
-
-  if(Number.isFinite(moneyVal)&&moneyVal>0)$('pay').value=moneyVal.toFixed(2);
+  // O valor pode aparecer como "R$26,21 + 4,00"; somar as parcelas.
+  const amountMatch=both.match(/R\s*\$?\s*([0-9]{1,4}(?:\.[0-9]{3})*(?:,[0-9]{2})|[0-9]{1,4}(?:,[0-9]{2}))(?:\s*\+\s*([0-9]{1,4}(?:,[0-9]{2})?))?/i);
+  const base=amountMatch?Number(amountMatch[1].replace(/\./g,'').replace(',','.')):null;
+  const bonus=amountMatch&&amountMatch[2]?Number(amountMatch[2].replace(',','.')):0;
+  const payVal=Number.isFinite(base)?base+bonus:null;
+  if(Number.isFinite(payVal)&&payVal>0)$('pay').value=payVal.toFixed(2);
   if(Number.isFinite(pickupVal)&&pickupVal>0)$('pickup').value=pickupVal.toFixed(1);
   if(Number.isFinite(tripVal)&&tripVal>0)$('trip').value=tripVal.toFixed(1);
-
   const missing=[];
-  if(!Number.isFinite(moneyVal)||moneyVal<=0)missing.push('valor recebido');
-  if(!Number.isFinite(pickupVal)||pickupVal<=0)missing.push('distância até a coleta');
-  if(!Number.isFinite(tripVal)||tripVal<=0)missing.push('distância do trajeto');
+  if(!Number.isFinite(payVal)||payVal<=0)missing.push('valor');
+  if(!Number.isFinite(pickupVal)||pickupVal<=0)missing.push('distância aproximada até você');
+  if(!Number.isFinite(tripVal)||tripVal<=0)missing.push('quilometragem do percurso');
   if(missing.length){
-    $('out').innerHTML='<h2>Leitura incompleta</h2><p class="bad">Não consegui identificar: '+missing.join(', ')+'.</p><p class="muted">Não vou inventar valores. Tente enviar a captura completa, sem cortar o cabeçalho laranja nem o cartão com os endereços.</p>';
+    const debug=(headerText+'\n'+raw).slice(0,900).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    $('out').innerHTML='<h2>Leitura incompleta</h2><p class="bad">Não reconheci: '+missing.join(', ')+'.</p><details><summary>Ver texto que o leitor conseguiu enxergar</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;color:#b7c6d9">'+debug+'</pre></details><p class="muted">Envie o print original da oferta, não uma captura da tela do Leo Driver com a oferta em miniatura.</p>';
     return;
   }
   $('return').value=$('returnVisible')?$('returnVisible').value:0;
   $('calc').click();
   const note=document.createElement('p');note.className='muted';
-  note.textContent='Leitura automática: coleta '+pickupVal.toLocaleString('pt-BR')+' km + trajeto '+tripVal.toLocaleString('pt-BR')+' km. Valor total reconhecido: '+money(moneyVal)+'. Retorno vazio considerado 0 km; ajuste nas configurações se necessário.';
+  note.textContent='Reconhecido: coleta '+pickupVal.toLocaleString('pt-BR')+' km + percurso '+tripVal.toLocaleString('pt-BR')+' km. Recebimento '+money(payVal)+'. Retorno vazio considerado 0 km; ajuste nas configurações se necessário.';
   $('out').appendChild(note);
  }catch(err){
-  $('out').innerHTML='<h2>Não foi possível ler a imagem</h2><p class="bad">O leitor automático falhou nesta captura. Confira a conexão e tente novamente.</p>';
+  const msg=(err&&err.message)?err.message:'Erro desconhecido';
+  $('out').innerHTML='<h2>Falha ao processar imagem</h2><p class="bad">'+msg+'</p><p class="muted">Confira a conexão e selecione o print original da oferta.</p>';
  }
 });
 render();
